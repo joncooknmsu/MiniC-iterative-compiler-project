@@ -12,3 +12,10 @@ Other branches capture the iterative solutions, with each iteration
 having its own branch, and a set of branches for each output language.
 The current output languages are X86-64 and RISC-V assembly code.
 
+## Iteration 1
+
+Iteration 1 is simple and is intended to be able to compile a
+Hello World program; its grammar can take multiple statements and
+so it can compile programs with multiple print calls.
+
+
