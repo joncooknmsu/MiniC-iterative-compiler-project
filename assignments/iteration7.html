@@ -1,0 +1,27 @@
+<html>
+<head>
+<title>
+Compiler 7: Extra credit features X86 
+</title>
+</head>
+<body>
+<p>Below are features that you can implement in your compiler for extra credit. Roughly, those marked easy are for up to 5 points, moderate is up to 10 points, and hard up to 15. You need to include in your submission test program(s) that show your features to be working, and instructions for how we can verify them (e.g., make rules, or which test program does which, etc.). The features below are in no particular order, and you do not have to choose them in order. Submit any of this in a "compiler7" directory in your Git repository. You cannot get credit for any of these extra credit features if you skipped major portions of any of the required compiler assignments.</p>
+<p>[easy] Function return values (int only) and using a function call in an expression: just add a "return expression" statement type and leave the expression value in %eax; also add a funcall rule to the expression rules. You can make it so it only works when "return" is used at the end of a function; if you want to do an early return, generate code that puts the return value in %eax and then jumps down to the bottom of the function.</p>
+<p>[easy to moderate] More variable usage error checking and reporting: your symbol table records already have information in them, so just add a bunch of checking code; check to make sure a variable is an array if used like one (and vice versa); check variable types; check that arrays are not declared as parameters or locals; etc.</p>
+<p>[easy to moderate] More arithmetic operators (with precedence): add more binary integer operators, and specify at least the precedence split between addition-type and multiplication-type operators (search the web for info on yacc %left, %right, and %precedence specifiers; you do not have to do it like the textbook expression grammar examples).</p>
+<p>[easy] More relational operators (&gt;= and &lt;=): you'll need to find a way to encode them correctly instead of what we currently do (we use the first character's ASCII value, but this will not distinguish between, e.g., &lt; and &lt;=; you can define whatever integers you want).</p>
+<p>[very easy] Parenthesized sub-expressions: once you do the grammar rule, everything else should "just work".</p>
+<p>[moderate] Logical Operators (&amp;&amp; and ||) in relational expressions: remember, these must be "short-circuit" operators, so they end up generating if-then-else code.</p>
+<p>[easy] Bitwise Operators (&amp; and | and ^): these should operate on integer values, and just generate instructions like the regular mathematical operators.</p>
+<p>[easy] Unary Operators (-, ~): these also operate on integer values and generate instructions.</p>
+<p>[moderate] Unary ! (Not) Relational Operator: this should only be allowed for a sub-parenthesized relational expression, and then it should reverse the internal relational operator. Requires adding parentheses to the rule, too.</p>
+<p>[hard] Greater than six parameters and arguments: Parameters/arguments passed six are passed on the stack, so the argument value must be pushed onto the stack, and the parameter use inside the function must refer to a positive offset from %rbp. You should experiment using "gcc -S" to see what's happening, and mimic it.</p>
+<p>[moderate] String (char*) variables -- at least assigning a constant string to a variable, and passing it as an argument; these variables will have to be 64-bit variables, and use the "r" registers and the "q" instructions. With function return values in expressions, you could then call the library function "malloc()", allocate strings, and use the other functions like sprintf() and strcpy()! Way cool!</p>
+<p>[hard] "long" integer variables -- 64 bit variables and operations (while still supporting 32-bit "int" variables and operations); you'd probably want to do some refactoring and figure out a way to abstract away the instruction suffix (l or q) and the register prefix (e or r), and then have common code to generate the computations.</p>
+<p>[very easy] do-while loop: this is just a while loop without the initial jump-to-condition instruction.</p>
+<p>[moderate] for loop: this is straightforward, you just need to put the pieces in the correct places. You might need four child AST nodes (init; cond; incr; body) , so you may need to increase the AST child array size to hold them all.</p>
+<p>[moderate to hard] function declaration and usage checking: require function definitions to occur before usage, then check function calls for using a declared function and check for correct number of arguments; you may still want to allow usage of an undeclared function (like printf), but just warn about it. You could also implement function prototypes, but whew!</p>
+<p>Maybe more here...if there is something you want to try, email me a suggestion!</p>
+</body>
+</html>
+

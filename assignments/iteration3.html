@@ -1,0 +1,55 @@
+<html>
+<head>
+<title>
+Compiler 3: Global variables and simple assignments X86
+</title>
+</head>
+<body>
+<h4><strong>Watch the bottom of this assignment for added hints and help!</strong></h4>
+<p>In this step we extend the work from the previous step to include having global variables, simple assignment statements, and using variables in simple expressions (which will allow them as arguments, too). We are also enabling the grammar to recognize parameter declarations, although we won't use them yet. Handling variables now requires us to build a <strong>symbol table</strong> module. See the bottom for more information.</p>
+<h3>Grammar needed for this assignment</h3>
+<p>Prog -&gt; <strong>Declarations</strong> Functions<br />Functions -&gt; empty | Function Functions<br />Function -&gt; ID LPAREN <strong>Parameters</strong> RPAREN LBRACE Statements RBRACE<br />Statements -&gt; Statement Statements | empty<br />Statement -&gt; FunCall SEMICOLON | <strong>Assignment SEMICOLON</strong><br />FunCall -&gt; ID LPAREN Arguments RPAREN<br /><strong>Assignment</strong> -&gt; ID EQUALS Expression<br />Arguments -&gt; empty | Argument | Argument COMMA Arguments<br />Argument -&gt; STRING | Expression<br />Expression -&gt; NUMBER | <strong>ID</strong> | Expression PLUS Expression<br /><strong>Declarations</strong> -&gt; empty | VarDecl SEMICOLON Declarations<br /><strong>VarDecl</strong> -&gt; KWINT ID | KWCHARS ID<br /><strong>Parameters</strong> -&gt; empty | VarDecl | VarDecl COMMA Parameters</p>
+<p>NOTES: new things are in bold (new rules only have a bold left-hand nonterminal). There is a new rule in Expression, in case you overlook it -- it is "ID", which allows a variable in an expression. The token KWINT is the keyword 'int', and the token KWCHARS is the keyword 'char*' -- yes, with the star on and part of the keyword. The real C language treats the '*' as a separate symbol, but we are only using it to declare a string pointer variable, and so we are making it part of the variable type keyword.</p>
+<h3>Scanner needed for this assignment</h3>
+<p>Your previous scanner needs augmented to recognize an EQUALS, the keyword 'int' (as a token such as KWINT), the keyword 'char*' (we will not support a space between 'char' and '*'). Note that you will need to put your lex regular expressions for the keywords above the one for generic identifiers, so that they are not scanned as generic identifiers. Earlier regular expressions in your lex file have a higher precedence than later ones, in case that a string can match two or more expressions.</p>
+<h3>Example Input</h3>
+<pre><br />int x;<br />int y;<br /><br />func(int a, char* b, char* s)<br />{<br />   puts("hello world!\n");<br />   x = 42+12;<br />   printf("x=%d\n",x);<br />}<br /><br />main(int argc, char* argv)<br />{<br />   func(42, "goodbye","third arg");<br />   printf("goodbye %s %d\n","second",42+4+x+2);<br />   puts("Hello World!\n");<br />}</pre>
+<h3>Output required</h3>
+<p>The function above will output, when successfully compiled and executed:</p>
+<pre>hello world!
+
+x=54
+goodbye second 102
+Hello World!</pre>
+<p>We now allow functions to have parameter declarations, but we are not actually using them yet, nor are we checking them.</p>
+<h3>Requirements</h3>
+<p>1. Must produce a lex/yacc-based compiler that compiles the example program into assembly code that gcc accepts and can produce an executable from. You will have a separate C source file and header file for your symbol table implementation.</p>
+<p>2. In an assignment statement and in any expression where a variable is used, your compiler must check to see if the variable has been defined. If not your compiler should print a syntax error message and exit. There is no need to try to continue parsing (although real compilers do, so that they can print out multiple syntax errors).</p>
+<p>3. Your compiler must also correctly compile similar programs as the above, with multiple functions defined, and multiple function call statements inside a function body.</p>
+<p>4. Your compiler must not have any memory leaks; this must be checked by valgrind. Your Makefile must have a target named "memcheck" such that if you enter the command "make memcheck" your Makefile will run valgrind on your compiler. Note that leftover memory blocks caused by "yyalloc" can be cleaned up by calling the function "yylex_destroy()" at the end of main().</p>
+<p>5. Your compiler must still meet all the requirements of Compiler 1 and Compiler 2. There should be no compiler warnings, but it is OK if yacc produces "shift/reduce" or "shift/shift" warnings.</p>
+<p>6. Submit your lex, yacc, and C source files (not generated ones), and your Makefile and the test program referred to in your "test" target, in a "compiler3" directory in your Github repository.</p>
+<p>That's it!</p>
+<h3>Hints and Help</h3>
+<p>A symbol table is a table where all the information about identifiers is stored. We have already seen the need for a table of constant strings, so that we can generate the required constant string data section in our assembly code. Symbols (variable names and function names for us, but more for full programming languages) also need to be saved and managed during compilation.</p>
+<p>Our symbol table will be hash table that uses linked lists in each bucket to resolve collisions. Each symbol will be represented by a Symbol structure, which includes its name, its datatype, and its scope level. Keeping track of scope levels is important in a compiler, so that a variable name used in an expression is associated to the correct variable (in the nearest scope).</p>
+<p>There is initial symbol table code available in <a class="instructure_file_link instructure_scribd_file" title="symtable.h" href="https://nmsu.instructure.com/courses/1693144/files/267993052/download?wrap=1" data-api-endpoint="https://nmsu.instructure.com/api/v1/courses/1693144/files/267993052" data-api-returntype="File">symtable.h</a> and <a class="instructure_file_link instructure_scribd_file" title="symtable.c" href="https://nmsu.instructure.com/courses/1693144/files/267993098/download?wrap=1" data-api-endpoint="https://nmsu.instructure.com/api/v1/courses/1693144/files/267993098" data-api-returntype="File">symtable.c</a>. This code is complete except for the "addSymbol" and "findSymbol" functions; you need to implement them. This is pure C code, but because each function has a first parameter that is a pointer to the table being used, it is pseudo-object oriented; think of each function as a method on a "table" object.&nbsp; The code includes a full implementation of the iterator function, because this is a bit tricky to get correct.</p>
+<h3>New Version of Globals</h3>
+<p>The current Undergrad lab computers generate the following kind of code for global variables.</p>
+<p>Global variables are declared using a ".comm" directive, and then can be used as names in your assembly code as long as they are used with a "(%rip)" suffix. For the two global variables x and y in the example above, we would need to generate the following code at top of our ".text" section:</p>
+<pre>   .comm x,4,4<br />   .comm y,4,4</pre>
+<p>These lines, like other directives, are tab-indented. The ".comm" directive with a "4,4" ending essentially means "create a 4-byte space that is on a 4-byte memory address boundary and associate the given symbol with it".</p>
+<p>Once we have those declarations, reading and writing the variables is as simple as using the names in a "movl" instruction, like:</p>
+<pre>     movl    %eax, x(%rip)      // means store register %eax into location 'x'<br />     movl    y(%rip), %eax      // means read var y and put value into %eax</pre>
+<p>The "(%rip)" is needed because these symbols are relative to the current instruction pointer (%rip).</p>
+<h3>Old Style Globals</h3>
+<p>Older versions of Linux and gcc produce the following for global variables (and it still usually works):</p>
+<p>Global variables are similar to string constants in terms of the assembly code they need -- they become labels in a ".data" section of assembly code, and space is created to store their value (for us, this will be with a ".long" directive). For the two global variables x and y in the example above, we would need to generate the following code at top:</p>
+<pre>     .data<br />x:   .long 0<br />y:   .long 0</pre>
+<p>Note that this is a new section begun with ".data" -- it is different from the string constant section, which is read-only data (".section rodata"). Each line for the variables creates a label of the variable name, and creates space for a 32-bit word, and initializes it to 0.</p>
+<p>Once we have those declarations, reading and writing the variables is as simple as using the names in a "movl" instruction, like:</p>
+<pre>     movl    %eax, x      // means store register %eax into location 'x'<br />     movl    y, %eax      // means read var y and put value into %eax</pre>
+<p>Possibly more later...</p>
+</body>
+</html>
+

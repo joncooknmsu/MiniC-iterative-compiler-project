@@ -1,0 +1,1 @@
+The HTML content of the assignment files is copied and pasted from Canvas assignment pages, using the "edit" mode and then switching the editor box to editing HTML directly, then selecting all and pasting it into the body section of these files.

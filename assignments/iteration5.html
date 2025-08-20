@@ -1,0 +1,101 @@
+<html>
+<head>
+<title>
+Compiler 5: Loops and conditionals X86
+</title>
+</head>
+<body>
+<p>NOTE: edits even of deliverables are possible up to two weeks before the due date; after that, informational edits may still happen.</p>
+<p>For iteration five we are adding the basic control structures of: if-then, if-then-else, and a while loop. To do this we also need to have boolean expressions that act as the conditional expression. If you remember from CS 273, relational operators are encoded <strong>into the conditional branch/jump</strong> instruction. This is true on the x86_64 platform too, so that is what we will do.</p>
+<h3>New Grammar</h3>
+<p>This is the grammar as extracted from my "parser.y" file, with all the action blocks removed, and formatted into much fewer lines.</p>
+<pre>prog: declarations functions
+declarations: /* empty */ | vardecl SEMICOLON declarations
+vardecl: KWINT ID | KWSTRING ID
+functions: /* empty */ | function functions
+function: ID LPAREN parameters RPAREN LBRACE statements RBRACE
+statements: /* empty */ | statement statements
+statement: funcall SEMICOLON | assignment SEMICOLON | whileloop | ifthen | ifthenelse
+assignment: ID EQUALS expression 
+funcall: ID LPAREN arguments RPAREN
+whileloop: KWWHILE LPAREN relexpr RPAREN LBRACE statements RBRACE
+ifthen: KWIF LPAREN relexpr RPAREN LBRACE statements RBRACE
+ifthenelse: KWIF LPAREN relexpr RPAREN LBRACE statements RBRACE KWELSE LBRACE statements RBRACE
+arguments: /* empty */ | argument | argument COMMA arguments
+argument: expression
+expression: NUMBER | STRING | ID | expression ADDOP expression
+relexpr: expression RELOP expression
+parameters: /* empty */ | vardecl | vardecl COMMA parameters
+</pre>
+<p>NOTES:</p>
+<p>Instead of PLUS in a our binary operator expression, I changed it to ADDOP. In your lex file you should add a pattern for a subtraction operator (just a minus sign), and both "+" and "-" should return ADDOP, and then set the yylval.ival to be the character value (yytext[0]). In AST printout and AST code generation, this value will be used to select the instruction to generate ("addl" or "subl").</p>
+<p>There are four new nonterminals that need declared as "astnode" types: whileloop, ifthen, ifthenelse, and relexpr.</p>
+<p>There are a few new token types that need to come from your scanner: ADDOP (described above), KWWHILE, KWIF, KWELSE, and RELOP.&nbsp; The "KW" types are for the new keywords (while, if, else).</p>
+<p>RELOP is for relational operators. You need to have four patterns for four relational operators: "&lt;", "&gt;", "==", and "!=". Each of these patterns must return RELOP and also must set their yylval.ival to be the first character (yytext[0]). We will use this ival to decide which jump instruction to generate (see below).</p>
+<h3>Relational Expression</h3>
+<p>The relational expression "relexpr" production rule is just a binary operator expression, just like we've had for our addition operator, but it only matches an expression with a RELOP operator. We are limiting our relational operators to just &lt;, &gt;, ==, and !=. We <strong>are NOT</strong> doing logical operators. In the real C programming language, all expressions are relational expressions, but it will be easier for code generation to keep these separate from other expressions. We are still compatible with C, but we are just doing a subset.</p>
+<p>We also have a new AST_RELEXPR node type in our abstract syntax tree. We already had node types for the loop and if-then-else constructs, but I wasn't sure last time if we would want a separate RELEXPR type, so I had not pre-created it. You will need to add case statements to both your printASTree() and genCodeFromASTree() functions.</p>
+<p>My exact code generation case for a relational expression is shown below (but read the explanation below; if you make different choices you have to change the conditional jump instructions).</p>
+<pre>    case AST_RELEXPR:
+       genCodeFromASTree(node-&gt;child[0],0,out);  // child 0 is left side
+       fprintf(out,"\tpushq\t%%rax\n");
+       genCodeFromASTree(node-&gt;child[1],0,out);  // child 1 is right side
+       fprintf(out,"\tpopq\t%%rcx\n");
+       fprintf(out,"\tcmpl\t%%eax,%%ecx\n");
+       switch (node-&gt;ival) {
+         case '&lt;': instr = "jl"; break;
+         case '&gt;': instr = "jg"; break;
+         case '!': instr = "jne"; break;
+         case '=': instr = "je"; break;
+         default: instr = "unknown relop";
+       }
+       fprintf(out,"\t%s\tLL%d\n",instr,count);
+       break;
+</pre>
+<p>Note that the variable "instr" is just a char* variable declared at the top of my function. All the way through the "popq" instruction, this is exactly the same as for the PLUS binary operator. After that though, if you remember from CS 273, we must do "compare and branch". The "cmpl" instruction does the compare, and then we need to generate the correct conditional branch instruction. On x86_64 they are called conditional jump instructions, but they work exactly the same. The inner switch statement sets the "instr" variable to the correct instruction. The final fprintf then generates an assembly code line with this instruction, and making it jump to a label "LL%d" if its condition is true. Where is this label? Well it will be put in the code somewhere by the contextual rule that this block is in. The ID of the label (its %d) comes from the "count" parameter, which the contextual block will set to the appropriate label ID. More on that below!</p>
+<h3>If-Then-Else</h3>
+<p>We already have an AST node type for this; just follow its pattern described in the printASTree() function's comments.</p>
+<p>The typical way to generate an if-then-else construct is as such:</p>
+<pre>        /* ASM code for relational expressions */
+        cmpl    /* two registers */
+        jle     LL101       /* pretending we have &gt; comparison */
+        /* code for IF block */
+        jmp     LL102       /* must jump around else block */
+LL101:
+        /* code for ELSE block */
+LL102:
+        /* program continues here */</pre>
+<p>However, this requires you to <strong>invert</strong> the conditional jump instruction (i.e., if the relational operator used in the if condition was "&gt;", then you would have to generate a "&lt;=" conditional jump, because you have to jump to the else case). There's no law, of course, requiring this order; we can put the else block before the if block, and then do our conditional jump to the if block. This way the conditional jump is the same as the relational operator used in the if condition. So our code can look like this:</p>
+<pre>        /* ASM code for relational expressions */
+        cmpl    /* two registers */
+        jg      LL101        /* pretending we have &gt; comparison */
+        /* code for ELSE block */
+        jmp     LL102        /* must jump around else block */
+LL101:
+        /* code for IF block */
+LL102:
+        /* program continues here */</pre>
+<p>You are free to do either way. Real C compilers do the first (they put the if block on top of the else block).</p>
+<p><strong>NOTE</strong>: The labels need auto-generated label IDs. For this, and for your while loop construct, you will need a function <strong>getUniqueLabelID</strong>() that returns a unique number each time it is called (just create a static local variable as a counter, and increment it each time). Before start fprintf-ing the code lines, call this twice for the two unique label ID numbers.</p>
+<h3>While Loop</h3>
+<p>We already have an AST node type for this; just follow its pattern described in the printASTree() function's comments.</p>
+<p>Most compilers, and us too, <strong>put the condition check at the bottom of the loop body</strong>, not on top! To do this for a while loop, we then need an initial jump-to-condition-check before the loop begins (and outside of the loop body. This structure actually makes the loop to have one less instruction. So the while loop code looks like this:</p>
+<pre>        jmp   LL102      /* jump to condition check */
+LL101:  /* label at top of loop body */
+        /* loop body code */
+LL102:
+        /* ASM code for relational expressions */
+        cmpl    /*registers */
+        jg         LL101       /* pretending we have &gt; comparison */
+        /* program continues here */</pre>
+<p>Note that the loop ends when the condition jump does not jump, and just falls through to the rest of the program.</p>
+<h3>Requirements</h3>
+<p>1. Your compiler must satisfy all of the iterations 1-4 requirements, unless superceded by requirements here.</p>
+<p>2. You must correctly implement the while loop, if-then, and if-then-else constructs in your compiler.</p>
+<p>Submit your full compiler source, including your Makefile and all files necessary for it, in a "compiler5" directory in your Git repository.</p>
+<h3>Hints and Help</h3>
+<p>If you recall from CS273, there are conditional branch/jump instructions for all six relational operators (==, !=, &lt;, &gt;, &lt;=, &gt;=) <strong>and</strong> there are separate conditional jumps for comparing signed integers and unsigned integers. In this assignment we will only use signed integers. The six conditional jump instructions on the x86 architecture are: je (jump if equal), jne (jump if not equal), jl (jump less than), jg (jump greater than), jle (jump less than or equal), and jge (jump greater than or equal). As a side note, you could actually get away with only one conditional jump, and in fact the MIPS architecture only has a "jump less than" instruction!</p>
+<p>&nbsp;</p>
+</body>
+</html>
+

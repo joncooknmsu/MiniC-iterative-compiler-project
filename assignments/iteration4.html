@@ -1,0 +1,173 @@
+<html>
+<head>
+<title>
+Compiler 4: Refactor to use abstract syntax tree X86
+</title>
+</head>
+<body>
+<p>NOTE: edits even of deliverables are possible up to two weeks before the due date; after that, informational edits may still happen.</p>
+<p>On page 340 of the textbook the authors write, "The construction of long strings of code that are attribute values, as in Example 5.20, is undesirable for several reasons, including the time it could take to copy or move long strings." In other words, having each of our grammar action blocks generate a code string as its attribute value is not the best way to do things!</p>
+<p>Real compilers generate an internal representation of the program instead of immediately outputting the assembly (or machine) code. As suggested in Chapter 2, we are going to use an <strong>abstract syntax tree</strong> as an internal representation of the program. This will require refactoring, but will clean up our code and make it easier to move forward and extend our language.</p>
+<p><strong>Refactoring</strong> is a software engineering idea that means we redesign and recode some of the internals of our program <strong>without</strong> adding any new visible functionality. The program continues to do what it did before, but now with a redesigned and recoded internal implementation that will hopefully help us more easily extend and enhance the program. <strong>Every</strong> evolving system needs refactoring at some point, or it will get too complicated to continue to change!</p>
+<p>So, we are NOT going to extend our grammar, we are not going to extend our scanner, and we will still compile the same test programs. We will violate pure refactoring in some minor ways, just to clean up our project around the edges, but we won't change the basic capability.</p>
+<h3>Main Refactoring Effort</h3>
+<p>The main change will be that <strong>every grammar nonterminal</strong> will be declared of type "astnode", and the action blocks of every production rule will either create or pass along AST node pointers rather than code strings. This will actually make the action blocks much simpler and consistent! All of the assembly code generation stuff will go out into a function that will be called from main() that will traverse the AST and generate code.</p>
+<p>You will need to grab the code in <a class="instructure_file_link instructure_scribd_file" title="astree.h" href="https://nmsu.instructure.com/courses/1693144/files/267993099/download?wrap=1" data-api-endpoint="https://nmsu.instructure.com/api/v1/courses/1693144/files/267993099" data-api-returntype="File">astree.h</a> and <a class="instructure_file_link instructure_scribd_file" title="astree.c" href="https://nmsu.instructure.com/courses/1693144/files/267993100/download?wrap=1" data-api-endpoint="https://nmsu.instructure.com/api/v1/courses/1693144/files/267993100" data-api-returntype="File">astree.c</a> for a start on your abstract syntax tree module. You will need to modify your Makefile to include the module in your compiling and linking.</p>
+<p>Then one big effort is to change all your parser action blocks to only be creating your abstract syntax tree. Code generation will be separate.</p>
+<p>My definition section in my parser code now looks like this:</p>
+<pre>/* token value data types */
+%union { 
+   int ival;  // for most scanner tokens
+   char* str; // tokens that need a string, like ID and STRING
+   struct astnode_s * astnode; // for all grammar nonterminals
+}
+
+/* Starting non-terminal */
+%start prog
+/* All nonterminals "return" an ASTNode pointer */
+%type &lt;astnode&gt; functions function statements statement funcall arguments
+%type &lt;astnode&gt; argument expression parameters declarations assignment
+%type &lt;astnode&gt; vardecl prog
+
+/* Token types -- tokens either have an int value or a string value */
+%token &lt;ival&gt; NUMBER COMMA SEMICOLON LPAREN RPAREN LBRACE RBRACE 
+%token &lt;ival&gt; PLUS EQUALS KWINT KWSTRING
+%token &lt;str&gt;  ID STRING </pre>
+<p>This means that all action blocks in my production rules produce a $$ that is an ASTNode*. So all the code for producing assembly code strings is gone! (<strong>Save it in another file</strong>, so you can use it when you write genCodeFromASTree()). Below are my actions for a couple of production rules:</p>
+<pre>functions: /* empty */ {$$ = 0; }
+     | function functions
+     {
+        if (debug) fprintf(stderr,"functions def!\n");
+        $1-&gt;next = $2;
+        $$ = $1;
+     }
+
+function: ID LPAREN parameters RPAREN LBRACE statements RBRACE
+     {
+        if (debug) fprintf(stderr,"function def!\n"); 
+        $$ = newASTNode(AST_FUNCTION);
+        $$-&gt;valtype = T_STRING;
+        $$-&gt;strval = $1;
+        $$-&gt;child[0] = $3;
+        $$-&gt;child[1] = $6;
+     }</pre>
+<p>The examples above show three things: 1) an empty rule returns a NULL pointer -- i.e., no ASTNode; 2) the non-empty <em>functions</em> rule does NOT create a new ASTNode, it just connects the ASTNode from the single function onto the front of the linked list of ASTNodes from the previous production of <em>functions</em>, and returns this new front-of-list node as its own (so, not every production rule must create a new ASTNode); and 3) the action for the production of <em>function</em> shows an example of creating a new ASTNode and populating it with important things (name of the function, and connecting the child AST subtrees).</p>
+<p>The example of the block for a new function is literally the longest action block I have! They are all simple now that they are just generating AST nodes and connecting them up!</p>
+<h3>The AST Module</h3>
+<p>The code linked above is the start of an AST module. It includes the structure and type definition for an AST node, and it includes three functions, one of which is empty -- you need to complete it for this assignment. The two functions it has that are implemented are <em>newASTNode</em>(), which allocates and initializes a new AST node, and <em>printASTree</em>(), which prints out a textual representation of an AST. This print function is heavily commented and you should use it to see what the node items are that each node type uses. <strong>This function is your guide</strong>!</p>
+<p>The function you need to complete is genCodeFromASTree(), which will generate assembly code from an AST. <strong>READ ITS HEADER COMMENT</strong>!</p>
+<p>In general, the program's abstract syntax tree is made up of nodes connected in a couple of different ways. One is as a linked list using a "next" pointer, and the other is with "child" pointers that point to subtrees for a node. Since a list is a degenerate form of a tree, the whole structure really is an abstract syntax tree, it just looks funny.</p>
+<p>In general, things in the grammar which are lists of things -- declarations, functions, statements, parameters, arguments, etc. are connected through their "next" pointer, as the example code above shows. Grammar rules that have nonterminals that do not form lists are "children" of the LHS nonterminal and so are connected through the "child" pointers. "child" is an array of three (because we need at most three children anywhere in our grammar), and are used in order. <strong>See <em>printASTree</em>() for what kind of children are expected on each kind of node</strong>!</p>
+<p>So, for example, the AST_PROGRAM type of node (which is the root node of the whole AST) has two children, one for the global variable declarations, and one for the functions. Its next pointer will be NULL. Each of the children, however, are the head node of a list of declarations or functions, and so will have next pointers pointing to the next declaration (or function), and also will have child pointers.</p>
+<h3>Requirements</h3>
+<p>1. All previous requirements, unless overridden by something here, still apply. This also applies to memory leaking (you should have none).</p>
+<p>2. Your grammar actions must only create an AST (and possibly be able to output debugging info, like the examples above).</p>
+<p>2a. I do suggest one change to your grammar: move STRING out of the rule for an argument into a new rule for expression (as "expression -&gt; STRING"), and make argument to have only one production rule "argument -&gt; expression". This makes things cleaner.</p>
+<p>3. Complete assembly code must be produced by <em>genCodeFromASTree()</em>. You can call helper functions from this function, but everything must start with a call to this function, and passing it the root node of your AST. This should happen from main(), after parsing has finished.</p>
+<p>4. Your compiler's user interface and output should follow these rules: a) when invoked with no arguments, it should read from "stdin" and output to "stdout"; b) when invoked with a filename argument, it should verify that the filename ends in ".c", and it should write out the assembly code in a filename of the same name but with ".s" at the end; c) it should be silent (no debugging or tracing output), unless a "-t" flag is used as an argument, in which case you can enable your debugging output on your parser and scanner rules; d) if a "-d" flag is given, it should print the textual representation of the AST to "stdout" and it should NOT output the assembly code (nor create the .s file).</p>
+<p>5. You main function should do as much error checking as possible on the command line arguments, and should print an error message if there are bad arguments and then return early with a non-zero return value. This includes checking for unknown arguments, checking whether the input file can be opened, checking whether the output file can be opened, etc.</p>
+<p>6. All tracing and error output should be fprintf'ed to "stderr"; Only the textual AST (in -d mode) and the assembly code in stdin/stdout mode should be printed to stdout.</p>
+<p>Submit all files required for building your compiler in a "compiler4" directory in your Git repository.</p>
+<h3>More Help and Hints</h3>
+<p>The bottom lines of my main function look like this:</p>
+<pre>...
+   // Now run the parser, which creates the internal AST rep
+   yyin = inf;
+   symtable = newSymbolTable();
+   yyparse();
+   // Decide whether to print the AST for debugging, or generate asm code
+   if (!doAssembly) {
+      printASTree(programAST,0,stdout);
+      return 0;
+   }
+   genCodeFromASTree(programAST,0,outf);
+   return 0;
+}</pre>
+<p>Given the input program:</p>
+<pre>func()
+{
+   puts("hello world!\n");
+}
+
+main()
+{
+   func("goodbye","second",42);
+   printf("goodbye %s %d\n","second",42+4+5+2);
+   puts("Hello World!\n");
+}</pre>
+<p>When I run my compiler with the "-d" option, I get this output:</p>
+<pre>Program
+   --functions--
+   Function def (func)
+      --body--
+      Function call (puts)
+         Funcall argument
+            String Constant = ("hello world!\n")
+   Function def (main)
+      --body--
+      Function call (func)
+         Funcall argument
+            String Constant = ("goodbye")
+         Funcall argument
+            String Constant = ("second")
+         Funcall argument
+            Int Constant = 42
+      Function call (printf)
+         Funcall argument
+            String Constant = ("goodbye %s %d\n")
+         Funcall argument
+            String Constant = ("second")
+         Funcall argument
+            Expression (op 43)
+               Int Constant = 42
+               Expression (op 43)
+                  Int Constant = 4
+                  Expression (op 43)
+                     Int Constant = 5
+                     Int Constant = 2
+      Function call (puts)
+         Funcall argument
+            String Constant = ("Hello World!\n")</pre>
+<p>Added Oct 29:</p>
+<p>For expression production rules, you should only create an AST_EXPRESSION node for the rule for "+" (the binary operator with subexpressions). The expression rules that just match a variable reference (ID) or a string or numeric constant should create AST nodes for those respective types (AST_VARREF or AST_CONSTANT).</p>
+<p>There is no AST_STATEMENT node type, each type of statement creates its own AST node, and then these should just be passed along as the statement node (as "$$=$1;"). The "statements" rule is the one that connects them up in a statement list.</p>
+<p>Also, your top-level "prog" rule must create an AST_PROGRAM node, connect its children to it, and then set a global variable to point to this node, which is the root of your abstract syntax tree for the entire program. Setting $$ does not do this since this is the top-level rule and $$ will not be used anywhere else. In my example code in main(), my global variable is named <em>programAST</em>.</p>
+<p>Also, when you see a STRING constant during parsing, add it to your string table in addition to creating an AST_CONSTANT node, and set the node-&gt;ival value to the string ID that you get from adding it to your string table.</p>
+<p>Added Oct 29:</p>
+<p>Here's another example input program and output printing of its AST:</p>
+<pre>int x;
+
+main()
+{
+   x = 42;
+   printf("four different args %d %d %d\n",42,x,5+3);
+   x = 9+12;
+}
+</pre>
+<pre>Program
+   Variable declaration (x) type int
+   --functions--
+   Function def (main)
+      --body--
+      Assignment to (x)
+         Int Constant = 42
+      Function call (printf)
+         Funcall argument
+            String Constant = ("four different args %d %d %d\n")
+         Funcall argument
+            Int Constant = 42
+         Funcall argument
+            Variable ref (x)
+         Funcall argument
+            Expression (op 43)
+               Int Constant = 5
+               Int Constant = 3
+      Assignment to (x)
+         Expression (op 43)
+            Int Constant = 9
+            Int Constant = 12
+</pre>
+<p>Watch this space for updates...</p>
+</body>
+</html>
+

@@ -1,0 +1,38 @@
+<html>
+<head>
+<title>
+Compiler 2: multiple arguments and mini expressions X86
+</title>
+</head>
+<body>
+<h4><strong>Watch the bottom of this assignment for added hints and help!</strong></h4>
+<p>In this step we extend the work from the previous step to include having multiple function definitions, function calls with multiple arguments, allowing both string and numeric constant arguments, and allowing simple expressions over numeric constants.</p>
+<h3>Grammar needed for this assignment</h3>
+<p>Prog -&gt; Functions<br />Functions -&gt; empty | Function Functions<br />Function -&gt; ID LPAREN RPAREN LBRACE Statements RBRACE<br />Statements -&gt; Statement Statements | empty<br />Statement -&gt; FunCall SEMICOLON<br />FunCall -&gt; ID LPAREN Arguments RPAREN<br />Arguments -&gt; empty | Argument | Argument COMMA Arguments<br />Argument -&gt; STRING | Expression<br />Expression -&gt; NUMBER | Expression PLUS Expression</p>
+<h3>Scanner needed for this assignment</h3>
+<p>Your previous scanner needs augmented to recognize a NUMBER, a COMMA, and a PLUS. A number is a sequence of the characters '0'-'9', and you should compute its value as the token's "ival" property. You can use the C library function "strtol()" to do this.</p>
+<h3>Example Input</h3>
+<pre>func()<br />{<br />   puts("hello world!");<br />}<br /><br />main()<br />{<br />   func("goodbye","second",42);<br />   printf("printf call %s %d\n","and more",42+4+5+2);<br />   puts("Hello World!");<br />}</pre>
+<h3>Output required</h3>
+<p>The program above will output, when successfully compiled and executed:</p>
+<pre>hello world!<br />printf call and more 53<br />Hello World</pre>
+<p>Our evolving language still does not let a function <em>declaration</em> have <em>parameters</em>, but it does allow function <em>calls</em> to have <em>arguments</em>; this is ok because even though 'func' is called with arguments, it never uses them.</p>
+<h3>Requirements</h3>
+<p>1. Must produce a lex/yacc-based compiler that compiles the example program into assembly code that gcc accepts and can produce an executable from. You may or may not have any separate C source files; this assignment is still small enough that all you might have is your lex and yacc input source files.</p>
+<p>2. Your compiler must also correctly compile similar programs as the above, with multiple functions defined, and multiple function call statements inside a function body.</p>
+<p>3. You must have a Makefile that compiles your program. For all C compiling, including the output of the lex and yacc commands, it must use -Wall as a compilation flag. It must have a "clean" target that removes all auto-generated files, including those from lex and yacc. It must have a "test" target that invokes your mini-compiler program on an example source file, then invokes gcc on your resulting assembly source file, and then runs the resulting executable file. The test example input program must be part of your submission.</p>
+<p>4. Your code must have zero warnings under the -Wall flag usage.</p>
+<p>That's it!</p>
+<h3>Submission</h3>
+<p>Submit your assignment by committing it into your Github repo under a "compiler2" directory. Be sure to NOT include any intermediate files produced by building your compiler, including *.o, executable, and&nbsp; the C files created by lex and yacc.</p>
+<h3>Hints and Help</h3>
+<p>As in the previous assignment, each nonterminal (except Prog) returns a string that is the formatted assembly code that does what that nonterminal represents. "Return" here means setting the $$ variable.</p>
+<p>The nonterminal Expression should return a code string that ends up leaving the result of the expression in the %eax register. For the recursive expression, the code from the first sub-expression should be followed by a "pushq %rax" instruction, then the code for the second subexpression should appear, then a "popq %rcx" instruction; the result of all this is that the second subexpression's value is in %eax and the result of the first subexpression is in %ecx. So after all that we can have an "addl" instruction that adds %eax and %ecx and leaves the value in %eax (so that the overall expression's value is now in %eax).&nbsp; Generating push and pop instructions to store intermediate results is the easiest way to deal with unbounded expressions, but it is terribly inefficient! We'll do better later, but for now, it works! Also note that push and pop are only defined as instructions for the 64-bit "%r" registers, but the "%e" registers are just the lower 32 bits, so it all works just fine.</p>
+<p>The nonterminal Argument should return code that properly sets up its argument value. But this is somewhat tricky! The course home page has a link to a page that documents the x86_64 calling conventions (<a href="https://wiki.osdev.org/Calling_Conventions">https://wiki.osdev.org/Calling_Conventions</a>), and these show that the first six arguments are passed in the registers %rdi, %rsi, %rdx, %rcx, %r8, and %r9. So the nonterminal Argument code must leave a value in one of these registers, depending on its position! Here's a way to do this: 1) create a global variable argNum or something like that; this will keep the argument position number; 2) create a global array of strings (argRegStr?) with the register names as strings, in their proper position; 3) each time you generate argument code, refer to "argRegStr[argNum]" to get the correct register name, and then increment argNum; 4) at the end of the FunCall rule, reset argNum back to 0; see code below.</p>
+<pre>int argNum=0;<br />char *argRegStr[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};</pre>
+<p>&nbsp;</p>
+<p>Hint on Oct 1, 2019: For your constant string lex pattern, you need to have a pattern that <strong>excludes</strong> the double-quote character itself. Otherwise, you might find yourself with a pattern that matches everything from the first double-quote in your test program all the way to the last one! In REAL C programs you can embed a double-quote character by putting a backslash in front of it, but we do not need to handle this kind of complexity right now. In your assignment, a quoted string does not need to be able to include backslashed double quote characters. Remember that "^" at the beginning of [] brackets means the opposite of the given character class, so saying "everything but a double quote character" is <strong>really very easy</strong>.</p>
+<p>More help and hints later...probably!</p>
+</body>
+</html>
+
