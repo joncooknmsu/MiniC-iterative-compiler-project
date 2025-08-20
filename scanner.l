@@ -1,9 +1,11 @@
+/*
+* Scanner for Mini-C iteration 1
+*/
 
-/* Header definitions */
 %{
+/* Header definitions section */
 #include <stdio.h>
 #include <stdlib.h>
-
 #ifndef LEXONLY
   /* we get token types from yacc */
   #include <y.tab.h>
@@ -15,8 +17,10 @@
   int debug=1;
   // still need to define all tokens here..., so this doesn't work
 #endif
+/* end header definitions */
 %}
 
+/* tell lex to keep track of input line numbers */
 %option yylineno
 
 /* RegExp Patterns */
@@ -69,7 +73,7 @@
 [ \t\n]+	     /* eat up whitespace */
 %%
 
-/* Functions (not used when used with parser) */
+/* Functions (not used when this is used with parser) */
 
 #ifdef LEXONLY
 // only define main() if used by itself

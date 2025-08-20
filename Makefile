@@ -1,12 +1,20 @@
 #
 # Mini-C compiler iteration 1
 # - do 'make test' and read the rule to see a complete
-#   example execution
+#   example execution (note: this ONLY works on a computer
+#   that has an X86-64 CPU (Intel, AMD); a Mac probably needs
+#   slightly different assembly code output from our compiler
+# - do 'make clean' to remove all generated files
 #
 
+# make variables (all caps) that define the compiler to use (CC)
+# and the option flags to give it (CFLAGS). Built-in rules for 
+# compiling C programs use these variables.
 CFLAGS = -I. -Wall -Wno-unused-function -g
 CC = gcc
 
+# default target rule must come first, so we just make it depend on
+# our compiler rule
 all: mycc
 
 # yacc nice opts: -d -t -v
@@ -17,7 +25,8 @@ y.tab.c: parser.y
 lex.yy.c: scanner.l y.tab.c
 	lex scanner.l
 
-# -ll for compiling lexer as standalone
+# our compiler target: links the scanner and 
+# parser into a single executable named 'mycc'
 mycc: lex.yy.o y.tab.o
 	gcc -o mycc y.tab.o lex.yy.o
 
@@ -31,6 +40,7 @@ test: mycc
 
 # this does not work, lex only mode needs more definitions and
 # would clutter the lex input file scanner.l
+# todo?: may need -ll for linking lexer as standalone
 lextest: lex.yy.c
 	gcc -o lextest -DLEXONLY lex.yy.c
 
